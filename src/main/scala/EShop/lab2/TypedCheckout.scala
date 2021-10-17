@@ -49,6 +49,8 @@ class TypedCheckout {
       msg match {
         case StartCheckout =>
           selectingDelivery(scheduleTimer(context, checkoutTimerDuration, ExpireCheckout))
+        case _ =>
+          Behaviors.same
     }
   )
 
@@ -61,6 +63,8 @@ class TypedCheckout {
           cancelled
         case SelectDeliveryMethod(_) =>
           selectingPaymentMethod(timer)
+        case _ =>
+          Behaviors.same
     }
   )
 
@@ -74,6 +78,8 @@ class TypedCheckout {
         case SelectPayment(_) =>
           timer.cancel()
           processingPayment(scheduleTimer(context, paymentTimerDuration, ExpirePayment))
+        case _ =>
+          Behaviors.same
     }
   )
 
@@ -87,6 +93,8 @@ class TypedCheckout {
         case ConfirmPaymentReceived =>
           timer.cancel()
           closed
+        case _ =>
+          Behaviors.same
     }
   )
 

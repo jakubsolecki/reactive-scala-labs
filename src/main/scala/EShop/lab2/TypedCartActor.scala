@@ -61,6 +61,8 @@ class TypedCartActor {
         case StartCheckout =>
           timer.cancel()
           inCheckout(cart)
+        case _ =>
+          Behaviors.same
     }
   )
 
