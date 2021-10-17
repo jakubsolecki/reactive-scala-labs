@@ -27,14 +27,49 @@ class TypedCartActor {
 
   val cartTimerDuration: FiniteDuration = 5 seconds
 
-  private def scheduleTimer(context: ActorContext[TypedCartActor.Command]): Cancellable = ???
+  private def scheduleTimer(context: ActorContext[TypedCartActor.Command]): Cancellable =
+    context.system.scheduler
+      .scheduleOnce(cartTimerDuration, () => { context.self ! ExpireCart })(context.executionContext)
 
-  def start: Behavior[TypedCartActor.Command] = ???
+  def start: Behavior[TypedCartActor.Command] = empty
 
-  def empty: Behavior[TypedCartActor.Command] = ???
+  def empty: Behavior[TypedCartActor.Command] = Behaviors.receive(
+    (context, msg) =>
+      msg match {
+        case AddItem(item) =>
+          nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
+    }
+  )
 
-  def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] = ???
+  def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] = Behaviors.receive(
+    (_, msg) =>
+      msg match {
+        case AddItem(item) =>
+          cart.addItem(item)
+          Behaviors.same
+        case RemoveItem(item) =>
+          if (cart.removeItem(item).size == 0) {
+            timer.cancel()
+            empty
+          } else {
+            Behaviors.same
+          }
+        case ExpireCart =>
+          empty
+        case StartCheckout =>
+          timer.cancel()
+          inCheckout(cart)
+    }
+  )
 
-  def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] = ???
+  def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] = Behaviors.receive(
+    (context, msg) =>
+      msg match {
+        case ConfirmCheckoutCancelled =>
+          nonEmpty(cart, scheduleTimer(context))
+        case ConfirmCheckoutClosed =>
+          empty
+    }
+  )
 
 }
