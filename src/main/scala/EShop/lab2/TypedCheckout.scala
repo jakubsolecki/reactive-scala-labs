@@ -111,5 +111,4 @@ class TypedCheckout {
         case _ => Behaviors.same
     }
   )
-
 }

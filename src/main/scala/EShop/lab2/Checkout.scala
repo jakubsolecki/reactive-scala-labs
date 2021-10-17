@@ -1,7 +1,7 @@
 package EShop.lab2
 
 import EShop.lab2.Checkout._
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
 import scala.concurrent.duration._
@@ -37,14 +37,14 @@ class Checkout extends Actor {
   val checkoutTimerDuration = 1 seconds
   val paymentTimerDuration  = 1 seconds
 
-  def receive: Receive = {
+  def receive: Receive = LoggingReceive {
     case StartCheckout =>
       context become selectingDelivery(
         scheduler.scheduleOnce(checkoutTimerDuration, self, ExpireCheckout)(context.dispatcher, self)
       )
   }
 
-  def selectingDelivery(timer: Cancellable): Receive = {
+  def selectingDelivery(timer: Cancellable): Receive = LoggingReceive {
     case ExpireCheckout =>
       context become cancelled
 
@@ -55,7 +55,7 @@ class Checkout extends Actor {
       context become selectingPaymentMethod(timer)
   }
 
-  def selectingPaymentMethod(timer: Cancellable): Receive = {
+  def selectingPaymentMethod(timer: Cancellable): Receive = LoggingReceive {
     case ExpireCheckout =>
       context become cancelled
 
@@ -69,7 +69,7 @@ class Checkout extends Actor {
       )
   }
 
-  def processingPayment(timer: Cancellable): Receive = {
+  def processingPayment(timer: Cancellable): Receive = LoggingReceive {
     case ExpirePayment =>
       context become cancelled
 
@@ -81,12 +81,25 @@ class Checkout extends Actor {
       context become closed
   }
 
-  def cancelled: Receive = {
+  def cancelled: Receive = LoggingReceive {
     case _ => None
   }
 
-  def closed: Receive = {
+  def closed: Receive = LoggingReceive {
     case _ => None
   }
+}
+
+object CheckoutApp extends App {
+  val actorSystem = ActorSystem("checkoutSystem")
+  val checkout    = actorSystem.actorOf(Props[Checkout], "checkout")
+
+  import Checkout._
+
+  checkout ! StartCheckout
+  checkout ! SelectDeliveryMethod("DHL")
+  checkout ! SelectPayment("BLIK")
+  checkout ! ConfirmPaymentReceived
+  sys.exit()
 
 }

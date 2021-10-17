@@ -1,7 +1,8 @@
 package EShop.lab2
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
+import java.lang.Thread.sleep
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -69,5 +70,19 @@ class CartActor extends Actor {
     case ConfirmCheckoutClosed =>
       context become empty
   }
+}
 
+object CartActorApp extends App {
+  val actorSystem = ActorSystem("cartSystem")
+  val cartActor   = actorSystem.actorOf(Props[CartActor], "cartActor")
+
+  import CartActor._
+
+  cartActor ! AddItem("Battlefield 2042 PC")
+  cartActor ! StartCheckout
+  cartActor ! ConfirmCheckoutCancelled
+  cartActor ! AddItem("Bucket")
+  Thread.sleep(6000)
+  actorSystem.stop(cartActor)
+  sys.exit()
 }

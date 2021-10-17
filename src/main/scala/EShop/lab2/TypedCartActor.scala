@@ -2,12 +2,15 @@ package EShop.lab2
 
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior}
-import scala.language.postfixOps
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Props}
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
 
 object TypedCartActor {
+//  def apply(): Behavior[TypedCartActor] = Behaviors.setup { context =>
+//    context.spawn(TypedCartActor(), "")
+//  }
 
   sealed trait Command
   case class AddItem(item: Any)        extends Command
@@ -77,5 +80,4 @@ class TypedCartActor {
           Behaviors.same
     }
   )
-
 }
