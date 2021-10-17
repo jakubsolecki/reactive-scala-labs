@@ -38,6 +38,8 @@ class TypedCartActor {
       msg match {
         case AddItem(item) =>
           nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
+        case _ =>
+          Behaviors.same
     }
   )
 
@@ -69,6 +71,8 @@ class TypedCartActor {
           nonEmpty(cart, scheduleTimer(context))
         case ConfirmCheckoutClosed =>
           empty
+        case _ =>
+          Behaviors.same
     }
   )
 

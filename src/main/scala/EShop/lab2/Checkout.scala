@@ -51,7 +51,7 @@ class Checkout extends Actor {
     case CancelCheckout =>
       context become cancelled
 
-    case SelectDeliveryMethod(method) =>
+    case SelectDeliveryMethod(_) =>
       context become selectingPaymentMethod(timer)
   }
 
@@ -62,7 +62,7 @@ class Checkout extends Actor {
     case CancelCheckout =>
       context become cancelled
 
-    case SelectPayment(payment) =>
+    case SelectPayment(_) =>
       timer.cancel()
       context become processingPayment(
         scheduler.scheduleOnce(paymentTimerDuration, self, ExpirePayment)(context.dispatcher, self)
@@ -77,8 +77,8 @@ class Checkout extends Actor {
       context become cancelled
 
     case ConfirmPaymentReceived =>
+      timer.cancel()
       context become closed
-
   }
 
   def cancelled: Receive = {
