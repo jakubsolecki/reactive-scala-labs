@@ -81,12 +81,18 @@ class Checkout extends Actor {
       context become closed
   }
 
-  def cancelled: Receive = LoggingReceive {
-    case _ => None
+  def cancelled: Receive = {
+    context stop self
+    LoggingReceive {
+      case _ => None
+    }
   }
 
-  def closed: Receive = LoggingReceive {
-    case _ => None
+  def closed: Receive = {
+    context stop self
+    LoggingReceive {
+      case _ => None
+    }
   }
 }
 
@@ -101,5 +107,4 @@ object CheckoutApp extends App {
   checkout ! SelectPayment("BLIK")
   checkout ! ConfirmPaymentReceived
   sys.exit()
-
 }

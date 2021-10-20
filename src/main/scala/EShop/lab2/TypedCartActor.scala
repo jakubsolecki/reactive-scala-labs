@@ -8,9 +8,6 @@ import scala.language.postfixOps
 import scala.concurrent.duration._
 
 object TypedCartActor {
-//  def apply(): Behavior[TypedCartActor] = Behaviors.setup { context =>
-//    context.spawn(TypedCartActor(), "")
-//  }
 
   sealed trait Command
   case class AddItem(item: Any)        extends Command
