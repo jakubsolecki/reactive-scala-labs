@@ -3,6 +3,12 @@ package EShop.lab3
 import EShop.lab2.{TypedCartActor, TypedCheckout}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.AskPattern.Askable
+import akka.util.Timeout
+
+import scala.concurrent.duration.DurationDouble
+import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 object OrderManager {
 
@@ -45,6 +51,9 @@ class OrderManager {
         case Buy(sender) =>
           cartActor ! TypedCartActor.StartCheckout(context.self)
           inCheckout(cartActor, sender)
+        case _ =>
+          context.log.info(s"Unknown message $msg")
+          Behaviors.same
     }
   )
 
@@ -57,6 +66,9 @@ class OrderManager {
         case OrderManager.ConfirmCheckoutStarted(checkoutRef) =>
           senderRef ! Done
           inCheckout(checkoutRef)
+        case _ =>
+          context.log.info(s"Unknown message $msg")
+          Behaviors.same
     }
   )
 
@@ -65,24 +77,21 @@ class OrderManager {
       msg match {
         case OrderManager.SelectDeliveryAndPaymentMethod(delivery, payment, sender) =>
           checkoutActorRef ! TypedCheckout.SelectDeliveryMethod(delivery)
-          checkoutActorRef ! TypedCheckout.SelectPayment(payment, context.self)
-          sender ! Done
+          implicit val timeout: Timeout = 0.5 seconds
+          implicit val scheduler = context.system.scheduler
+          val res = checkoutActorRef.ask(ref => TypedCheckout.SelectPayment(payment, ref))
+          implicit val ctx = context.executionContext
+          var p: ActorRef[Payment.Command] = null
+          res.onComplete {
+            case Success(OrderManager.ConfirmPaymentStarted(paymentRef)) =>
+              sender ! Done
+              p = paymentRef
+            case Failure(_) => Behaviors.same
+          }
+          inPayment(p, sender)
+        case _ =>
+          context.log.info(s"Unknown message $msg")
           Behaviors.same
-        case Pay(sender) =>
-          sender ! Done
-          inPayment(sender)
-    }
-  )
-
-  def inPayment(senderRef: ActorRef[Ack]): Behavior[OrderManager.Command] = Behaviors.receive(
-    (context, msg) =>
-      msg match {
-        case OrderManager.ConfirmPaymentStarted(paymentRef) =>
-          senderRef ! Done
-          inPayment(paymentRef, senderRef)
-        case ConfirmPaymentReceived =>
-          senderRef ! Done
-          finished
     }
   )
 
@@ -92,9 +101,15 @@ class OrderManager {
   ): Behavior[OrderManager.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
+        case Pay(sender) =>
+          sender ! Done
+          Behaviors.same
         case ConfirmPaymentReceived =>
           senderRef ! Done
           finished
+        case _ =>
+          context.log.info(s"Unknown message $msg, pay")
+          Behaviors.same
     }
   )
 
