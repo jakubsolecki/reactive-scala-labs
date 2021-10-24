@@ -2,7 +2,7 @@ package EShop.lab2
 
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Props}
+import akka.actor.typed.{ActorRef, Behavior}
 
 import scala.language.postfixOps
 import scala.concurrent.duration._
@@ -21,6 +21,13 @@ object TypedCartActor {
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
+
+  def apply(): Behavior[TypedCartActor.Command] = Behaviors.setup(
+    context => {
+      val actor = new TypedCartActor()
+      actor.start
+    }
+  )
 }
 
 class TypedCartActor {
@@ -38,15 +45,13 @@ class TypedCartActor {
   def empty: Behavior[TypedCartActor.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case AddItem(item) =>
-          nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
-        case _ =>
-          Behaviors.same
+        case AddItem(item) => nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
+        case _             => Behaviors.same
     }
   )
 
   def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] = Behaviors.receive(
-    (_, msg) =>
+    (context, msg) =>
       msg match {
         case AddItem(item) =>
           cart.addItem(item)
@@ -58,25 +63,22 @@ class TypedCartActor {
           } else {
             Behaviors.same
           }
-        case ExpireCart =>
-          empty
-        case StartCheckout =>
+        case ExpireCart => empty
+        case StartCheckout(orderManagerRef: ActorRef[OrderManager.Command]) =>
           timer.cancel()
+          val checkout = context.spawn(TypedCheckout(context.self), "checkout")
+          orderManagerRef ! OrderManager.ConfirmCheckoutStarted(checkout)
           inCheckout(cart)
-        case _ =>
-          Behaviors.same
+        case _ => Behaviors.same
     }
   )
 
   def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case ConfirmCheckoutCancelled =>
-          nonEmpty(cart, scheduleTimer(context))
-        case ConfirmCheckoutClosed =>
-          empty
-        case _ =>
-          Behaviors.same
+        case ConfirmCheckoutCancelled => nonEmpty(cart, scheduleTimer(context))
+        case ConfirmCheckoutClosed    => empty
+        case _                        => Behaviors.same
     }
   )
 }
