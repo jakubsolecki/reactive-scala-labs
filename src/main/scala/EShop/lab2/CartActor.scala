@@ -1,8 +1,8 @@
 package EShop.lab2
-
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -29,14 +29,59 @@ class CartActor extends Actor {
   private val log       = Logging(context.system, this)
   val cartTimerDuration = 5 seconds
 
-  private def scheduleTimer: Cancellable = ???
+  private def scheduleTimer: Cancellable =
+    context.system.scheduler.scheduleOnce(cartTimerDuration) {
+      self ! ExpireCart
+    }
 
-  def receive: Receive = ???
+  def receive: Receive = LoggingReceive {
+    case AddItem(item) =>
+      context become nonEmpty(Cart(Seq[Any](item)), scheduleTimer)
+  }
 
-  def empty: Receive = ???
+  def empty: Receive = LoggingReceive {
+    case AddItem(item) =>
+      context become nonEmpty(Cart(Seq[Any](item)), scheduleTimer)
+  }
 
-  def nonEmpty(cart: Cart, timer: Cancellable): Receive = ???
+  def nonEmpty(cart: Cart, timer: Cancellable): Receive = LoggingReceive {
+    case AddItem(item) =>
+      cart.addItem(item)
 
-  def inCheckout(cart: Cart): Receive = ???
+    case RemoveItem(item) =>
+      if (cart.removeItem(item).size == 0) {
+        timer.cancel()
+        context become empty
+      }
 
+    case StartCheckout =>
+      timer.cancel()
+      context become inCheckout(cart)
+
+    case ExpireCart =>
+      context become empty
+  }
+
+  def inCheckout(cart: Cart): Receive = LoggingReceive {
+    case ConfirmCheckoutCancelled =>
+      context become nonEmpty(cart, scheduleTimer)
+
+    case ConfirmCheckoutClosed =>
+      context become empty
+  }
+}
+
+object CartActorApp extends App {
+  val actorSystem = ActorSystem("cartSystem")
+  val cartActor   = actorSystem.actorOf(Props[CartActor], "cartActor")
+
+  import CartActor._
+
+  cartActor ! AddItem("Battlefield 2042 PC")
+  cartActor ! StartCheckout
+  cartActor ! ConfirmCheckoutCancelled
+  cartActor ! AddItem("Bucket")
+  Thread.sleep(6000)
+  actorSystem.stop(cartActor)
+  sys.exit()
 }

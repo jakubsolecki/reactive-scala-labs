@@ -1,7 +1,7 @@
 package EShop.lab2
 
 import EShop.lab2.Checkout._
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
 import scala.concurrent.duration._
@@ -37,16 +37,74 @@ class Checkout extends Actor {
   val checkoutTimerDuration = 1 seconds
   val paymentTimerDuration  = 1 seconds
 
-  def receive: Receive = ???
+  def receive: Receive = LoggingReceive {
+    case StartCheckout =>
+      context become selectingDelivery(
+        scheduler.scheduleOnce(checkoutTimerDuration, self, ExpireCheckout)(context.dispatcher, self)
+      )
+  }
 
-  def selectingDelivery(timer: Cancellable): Receive = ???
+  def selectingDelivery(timer: Cancellable): Receive = LoggingReceive {
+    case ExpireCheckout =>
+      context become cancelled
 
-  def selectingPaymentMethod(timer: Cancellable): Receive = ???
+    case CancelCheckout =>
+      context become cancelled
 
-  def processingPayment(timer: Cancellable): Receive = ???
+    case SelectDeliveryMethod(_) =>
+      context become selectingPaymentMethod(timer)
+  }
 
-  def cancelled: Receive = ???
+  def selectingPaymentMethod(timer: Cancellable): Receive = LoggingReceive {
+    case ExpireCheckout =>
+      context become cancelled
 
-  def closed: Receive = ???
+    case CancelCheckout =>
+      context become cancelled
 
+    case SelectPayment(_) =>
+      timer.cancel()
+      context become processingPayment(
+        scheduler.scheduleOnce(paymentTimerDuration, self, ExpirePayment)(context.dispatcher, self)
+      )
+  }
+
+  def processingPayment(timer: Cancellable): Receive = LoggingReceive {
+    case ExpirePayment =>
+      context become cancelled
+
+    case CancelCheckout =>
+      context become cancelled
+
+    case ConfirmPaymentReceived =>
+      timer.cancel()
+      context become closed
+  }
+
+  def cancelled: Receive = {
+    context stop self
+    LoggingReceive {
+      case _ => None
+    }
+  }
+
+  def closed: Receive = {
+    context stop self
+    LoggingReceive {
+      case _ => None
+    }
+  }
+}
+
+object CheckoutApp extends App {
+  val actorSystem = ActorSystem("checkoutSystem")
+  val checkout    = actorSystem.actorOf(Props[Checkout], "checkout")
+
+  import Checkout._
+
+  checkout ! StartCheckout
+  checkout ! SelectDeliveryMethod("DHL")
+  checkout ! SelectPayment("BLIK")
+  checkout ! ConfirmPaymentReceived
+  sys.exit()
 }
