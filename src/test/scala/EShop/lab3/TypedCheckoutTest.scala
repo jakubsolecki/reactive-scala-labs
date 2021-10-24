@@ -30,7 +30,7 @@ class TypedCheckoutTest
 
     checkoutActor ! SelectDeliveryMethod("inpost")
     checkoutActor ! SelectPayment("blik", orderManagerProbe.ref)
-    orderManagerProbe.expectMessageType[ConfirmPaymentStarted]
+    orderManagerProbe.expectMessageType[PaymentStarted]
 
     checkoutActor ! TypedCheckout.ConfirmPaymentReceived
     cartProbe.expectMessage(ConfirmCheckoutClosed)

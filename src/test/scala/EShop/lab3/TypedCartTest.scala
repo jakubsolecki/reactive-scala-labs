@@ -64,7 +64,7 @@ class TypedCartTest
     probe.expectMessage(nonEmptyMsg)
     probe.expectMessage(1)
 
-    cart ! TypedCartActor.StartCheckout(testKit.createTestProbe[OrderManager.Command]().ref)
+    cart ! TypedCartActor.StartCheckout(testKit.createTestProbe[TypedCartActor.Event]().ref)
     probe.expectMessage(inCheckoutMsg)
     probe.expectMessage(1)
   }

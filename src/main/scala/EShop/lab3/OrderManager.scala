@@ -1,11 +1,13 @@
 package EShop.lab3
 
+import EShop.lab2
 import EShop.lab2.{TypedCartActor, TypedCheckout}
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.util.Timeout
 
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.concurrent.duration.DurationDouble
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
@@ -21,6 +23,8 @@ object OrderManager {
   case class ConfirmCheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command])                     extends Command
   case class ConfirmPaymentStarted(paymentRef: ActorRef[Payment.Command])                             extends Command
   case object ConfirmPaymentReceived                                                                  extends Command
+  case class CheckoutEvent(message: TypedCheckout.Event)                                              extends Command
+  case class CartActorEvent(message: TypedCartActor.Event)                                            extends Command
 
   sealed trait Ack
   case object Done extends Ack //trivial ACK
@@ -30,7 +34,16 @@ class OrderManager {
 
   import OrderManager._
 
+  var checkoutAdapter: ActorRef[TypedCheckout.Event]   = null
+  var cartActorAdapter: ActorRef[TypedCartActor.Event] = null
+
   def start: Behavior[OrderManager.Command] = Behaviors.setup { context =>
+    checkoutAdapter = context.messageAdapter {
+      case TypedCheckout.PaymentStarted(paymentRef) => ConfirmPaymentStarted(paymentRef)
+    }
+    cartActorAdapter = context.messageAdapter {
+      case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
+    }
     val cartActor = context.spawn(TypedCartActor(), "cartActor")
     open(cartActor)
   }
@@ -49,10 +62,10 @@ class OrderManager {
           sender ! Done
           Behaviors.same
         case Buy(sender) =>
-          cartActor ! TypedCartActor.StartCheckout(context.self)
+          cartActor ! TypedCartActor.StartCheckout(cartActorAdapter)
           inCheckout(cartActor, sender)
         case _ =>
-          context.log.info(s"Unknown message $msg")
+          context.log.info(s"Unknown message $msg in open")
           Behaviors.same
     }
   )
@@ -67,7 +80,7 @@ class OrderManager {
           senderRef ! Done
           inCheckout(checkoutRef)
         case _ =>
-          context.log.info(s"Unknown message $msg")
+          context.log.info(s"Unknown message $msg in inCheckout(2)")
           Behaviors.same
     }
   )
@@ -77,20 +90,20 @@ class OrderManager {
       msg match {
         case OrderManager.SelectDeliveryAndPaymentMethod(delivery, payment, sender) =>
           checkoutActorRef ! TypedCheckout.SelectDeliveryMethod(delivery)
-          implicit val timeout: Timeout = 0.5 seconds
-          implicit val scheduler = context.system.scheduler
-          val res = checkoutActorRef.ask(ref => TypedCheckout.SelectPayment(payment, ref))
-          implicit val ctx = context.executionContext
-          var p: ActorRef[Payment.Command] = null
+          implicit val timeout: Timeout              = 0.5 seconds
+          implicit val scheduler: Scheduler          = context.system.scheduler
+          val res: Future[Any]                       = checkoutActorRef.ask(checkoutAdapter => TypedCheckout.SelectPayment(payment, checkoutAdapter))
+          implicit val ctx: ExecutionContextExecutor = context.executionContext
+          var p: ActorRef[Payment.Command]           = null
           res.onComplete {
-            case Success(OrderManager.ConfirmPaymentStarted(paymentRef)) =>
+//            case Success(OrderManager.ConfirmPaymentStarted(paymentRef)) =>
+            case Success(TypedCheckout.PaymentStarted(paymentRef)) =>
               sender ! Done
               p = paymentRef
-            case Failure(_) => Behaviors.same
           }
           inPayment(p, sender)
         case _ =>
-          context.log.info(s"Unknown message $msg")
+          context.log.info(s"Unknown message $msg in inCheckout(1)")
           Behaviors.same
     }
   )
@@ -108,7 +121,7 @@ class OrderManager {
           senderRef ! Done
           finished
         case _ =>
-          context.log.info(s"Unknown message $msg, pay")
+          context.log.info(s"Unknown message $msg in payment")
           Behaviors.same
     }
   )
