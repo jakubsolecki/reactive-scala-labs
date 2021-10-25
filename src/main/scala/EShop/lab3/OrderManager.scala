@@ -62,7 +62,6 @@ class OrderManager {
           sender ! Done
           Behaviors.same
         case Buy(sender) =>
-          cartActor ! TypedCartActor.StartCheckout(cartActorAdapter)
           inCheckout(cartActor, sender)
         case _ =>
           context.log.info(s"Unknown message $msg in open")
@@ -73,58 +72,67 @@ class OrderManager {
   def inCheckout(
     cartActorRef: ActorRef[TypedCartActor.Command],
     senderRef: ActorRef[Ack]
-  ): Behavior[OrderManager.Command] = Behaviors.receive(
-    (context, msg) =>
-      msg match {
-        case OrderManager.ConfirmCheckoutStarted(checkoutRef) =>
-          senderRef ! Done
-          inCheckout(checkoutRef)
-        case _ =>
-          context.log.info(s"Unknown message $msg in inCheckout(2)")
-          Behaviors.same
+  ): Behavior[OrderManager.Command] =
+    Behaviors.setup { - =>
+      cartActorRef ! TypedCartActor.StartCheckout(cartActorAdapter)
+          Behaviors.receive(
+          (context, msg) =>
+            msg match {
+              case OrderManager.ConfirmCheckoutStarted(checkoutRef) =>
+                senderRef ! Done
+                inCheckout(checkoutRef)
+              case _ =>
+                context.log.info(s"Unknown message $msg in inCheckout(2)")
+                Behaviors.same
+          }
+        )
     }
-  )
 
   def inCheckout(checkoutActorRef: ActorRef[TypedCheckout.Command]): Behavior[OrderManager.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
         case OrderManager.SelectDeliveryAndPaymentMethod(delivery, payment, sender) =>
           checkoutActorRef ! TypedCheckout.SelectDeliveryMethod(delivery)
-          implicit val timeout: Timeout              = 0.5 seconds
-          implicit val scheduler: Scheduler          = context.system.scheduler
-          val res: Future[Any]                       = checkoutActorRef.ask(checkoutAdapter => TypedCheckout.SelectPayment(payment, checkoutAdapter))
-          implicit val ctx: ExecutionContextExecutor = context.executionContext
-          var p: ActorRef[Payment.Command]           = null
-          res.onComplete {
-//            case Success(OrderManager.ConfirmPaymentStarted(paymentRef)) =>
-            case Success(TypedCheckout.PaymentStarted(paymentRef)) =>
-              sender ! Done
-              p = paymentRef
-          }
-          inPayment(p, sender)
+          checkoutActorRef ! TypedCheckout.SelectPayment(payment, checkoutAdapter)
+          inPayment(sender)
         case _ =>
           context.log.info(s"Unknown message $msg in inCheckout(1)")
           Behaviors.same
     }
   )
 
+  def inPayment(senderRef: ActorRef[Ack]): Behavior[OrderManager.Command] = Behaviors.receive {
+    (context, message) =>
+      context.log.info("inPayment Received message: {}", message)
+      message match {
+        case ConfirmPaymentStarted(paymentActorRef) =>
+          inPayment(paymentActorRef, senderRef)
+        case _ =>
+          context.log.info("Received unknown message: {}", message)
+          Behaviors.same
+      }
+  }
+
   def inPayment(
     paymentActorRef: ActorRef[Payment.Command],
     senderRef: ActorRef[Ack]
-  ): Behavior[OrderManager.Command] = Behaviors.receive(
-    (context, msg) =>
-      msg match {
-        case Pay(sender) =>
-          sender ! Done
-          Behaviors.same
-        case ConfirmPaymentReceived =>
-          senderRef ! Done
-          finished
-        case _ =>
-          context.log.info(s"Unknown message $msg in payment")
-          Behaviors.same
-    }
-  )
+  ): Behavior[OrderManager.Command] = Behaviors.setup { _ =>
+    senderRef ! Done
+    Behaviors.receive(
+      (context, msg) =>
+        msg match {
+          case Pay(sender) =>
+            paymentActorRef ! Payment.DoPayment
+            inPayment(paymentActorRef, sender)
+          case ConfirmPaymentReceived =>
+            senderRef ! Done
+            finished
+          case _ =>
+            context.log.info(s"Unknown message $msg in payment")
+            Behaviors.same
+        }
+    )
+  }
 
   def finished: Behavior[OrderManager.Command] = Behaviors.stopped
 }
