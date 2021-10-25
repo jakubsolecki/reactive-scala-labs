@@ -2,23 +2,32 @@ package EShop.lab2
 
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Props}
+import akka.actor.typed.{ActorRef, Behavior}
 
 import scala.language.postfixOps
 import scala.concurrent.duration._
+import EShop.lab3.OrderManager
 
 object TypedCartActor {
 
   sealed trait Command
-  case class AddItem(item: Any)        extends Command
-  case class RemoveItem(item: Any)     extends Command
-  case object ExpireCart               extends Command
-  case object StartCheckout            extends Command
-  case object ConfirmCheckoutCancelled extends Command
-  case object ConfirmCheckoutClosed    extends Command
+  case class AddItem(item: Any)                              extends Command
+  case class RemoveItem(item: Any)                           extends Command
+  case object ExpireCart                                     extends Command
+  case class StartCheckout(orderManagerRef: ActorRef[Event]) extends Command
+  case object ConfirmCheckoutCancelled                       extends Command
+  case object ConfirmCheckoutClosed                          extends Command
+  case class GetItems(sender: ActorRef[Cart])                extends Command // command made to make testing easier
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
+
+  def apply(): Behavior[TypedCartActor.Command] = Behaviors.setup(
+    context => {
+      val actor = new TypedCartActor()
+      actor.start
+    }
+  )
 }
 
 class TypedCartActor {
@@ -36,15 +45,13 @@ class TypedCartActor {
   def empty: Behavior[TypedCartActor.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case AddItem(item) =>
-          nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
-        case _ =>
-          Behaviors.same
+        case AddItem(item) => nonEmpty(Cart(Seq[Any](item)), scheduleTimer(context))
+        case _             => Behaviors.same
     }
   )
 
   def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] = Behaviors.receive(
-    (_, msg) =>
+    (context, msg) =>
       msg match {
         case AddItem(item) =>
           cart.addItem(item)
@@ -56,25 +63,24 @@ class TypedCartActor {
           } else {
             Behaviors.same
           }
-        case ExpireCart =>
-          empty
-        case StartCheckout =>
+        case ExpireCart => empty
+        case StartCheckout(orderManagerRef: ActorRef[Any]) =>
           timer.cancel()
+          val checkout = context.spawn(TypedCheckout(context.self), "checkout")
+//          orderManagerRef ! OrderManager.ConfirmCheckoutStarted(checkout)
+//          orderManagerRef ! OrderManager.CartActorEvent(CheckoutStarted(checkout))
+          orderManagerRef ! CheckoutStarted(checkout)
           inCheckout(cart)
-        case _ =>
-          Behaviors.same
+        case _ => Behaviors.same
     }
   )
 
   def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case ConfirmCheckoutCancelled =>
-          nonEmpty(cart, scheduleTimer(context))
-        case ConfirmCheckoutClosed =>
-          empty
-        case _ =>
-          Behaviors.same
+        case ConfirmCheckoutCancelled => nonEmpty(cart, scheduleTimer(context))
+        case ConfirmCheckoutClosed    => empty
+        case _                        => Behaviors.same
     }
   )
 }
