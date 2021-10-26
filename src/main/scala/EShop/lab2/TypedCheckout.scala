@@ -28,6 +28,17 @@ object TypedCheckout {
   sealed trait Event
   case object CheckOutClosed                                       extends Event
   case class PaymentStarted(paymentRef: ActorRef[Payment.Command]) extends Event
+  case object CheckoutStarted                                      extends Event
+  case object CheckoutCancelled                                    extends Event
+  case class DeliveryMethodSelected(method: String)                extends Event
+
+  sealed abstract class State(val timerOpt: Option[Cancellable])
+  case object WaitingForStart                           extends State(None)
+  case class SelectingDelivery(timer: Cancellable)      extends State(Some(timer))
+  case class SelectingPaymentMethod(timer: Cancellable) extends State(Some(timer))
+  case object Closed                                    extends State(None)
+  case object Cancelled                                 extends State(None)
+  case class ProcessingPayment(timer: Cancellable)      extends State(Some(timer))
 
   def apply(cartActor: ActorRef[TypedCartActor.Command]): Behavior[TypedCheckout.Command] = Behaviors.setup(
     context => {

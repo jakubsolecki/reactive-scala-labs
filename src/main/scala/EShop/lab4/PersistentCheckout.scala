@@ -16,7 +16,8 @@ class PersistentCheckout {
 
   val timerDuration: FiniteDuration = 1.seconds
 
-  def schedule(context: ActorContext[Command]): Cancellable = ???
+  def schedule(context: ActorContext[Command]): Cancellable =
+    context.scheduleOnce(timerDuration, context.self, ExpirePayment)
 
   def apply(cartActor: ActorRef[TypedCartActor.Command], persistenceId: PersistenceId): Behavior[Command] =
     Behaviors.setup { context =>

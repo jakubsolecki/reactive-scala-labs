@@ -16,7 +16,8 @@ class PersistentCartActor {
 
   val cartTimerDuration: FiniteDuration = 5.seconds
 
-  private def scheduleTimer(context: ActorContext[Command]): Cancellable = ???
+  private def scheduleTimer(context: ActorContext[Command]): Cancellable =
+    context.scheduleOnce(cartTimerDuration, context.self, ExpireCart)
 
   def apply(persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { context =>
     EventSourcedBehavior[Command, Event, State](

@@ -24,7 +24,8 @@ class PersistentCheckoutTest
 
   private val cartActorProbe = testKit.createTestProbe[TypedCartActor.Command]()
 
-  private val orderManagerProbe = testKit.createTestProbe[OrderManager.Command]
+//  private val orderManagerProbe = testKit.createTestProbe[OrderManager.Command]
+  private val orderManagerProbe = testKit.createTestProbe[Event]
 
   private val eventSourcedTestKit =
     EventSourcedBehaviorTestKit[Command, Event, State](
