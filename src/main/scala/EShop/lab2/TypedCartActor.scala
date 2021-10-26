@@ -53,8 +53,6 @@ class TypedCartActor {
 
   private def scheduleTimer(context: ActorContext[TypedCartActor.Command]): Cancellable =
     context.scheduleOnce(cartTimerDuration, context.self, ExpireCart)
-//    context.system.scheduler
-//      .scheduleOnce(cartTimerDuration, () => { context.self ! ExpireCart })(context.executionContext)
 
   def start: Behavior[TypedCartActor.Command] = empty
 

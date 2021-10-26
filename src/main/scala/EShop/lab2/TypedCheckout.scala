@@ -61,9 +61,7 @@ class TypedCheckout(
     timerDuration: FiniteDuration,
     command: Command
   ): Cancellable =
-    context.system.scheduler.scheduleOnce(timerDuration, () => {
-      context.self ! command
-    })(context.executionContext)
+    context.scheduleOnce(timerDuration, context.self, command)
 
   def start: Behavior[TypedCheckout.Command] = Behaviors.setup(
     context => selectingDelivery(scheduleTimer(context, checkoutTimerDuration, ExpireCheckout))
