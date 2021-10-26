@@ -1,1 +1,1 @@
-# Jakub Solecki
+# reactive-lab
