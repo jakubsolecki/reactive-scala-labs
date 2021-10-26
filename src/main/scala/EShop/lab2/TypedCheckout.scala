@@ -78,7 +78,6 @@ class TypedCheckout(
         case SelectPayment(payment: String, orderManagerRef: ActorRef[Any]) =>
           timer.cancel()
           val paymentRef = context.spawn(Payment(payment, orderManagerRef, context.self), "payment")
-//          orderManagerRef ! OrderManager.ConfirmPaymentStarted(paymentRef)
           orderManagerRef ! PaymentStarted(paymentRef)
           processingPayment(scheduleTimer(context, paymentTimerDuration, ExpirePayment))
         case _ =>
