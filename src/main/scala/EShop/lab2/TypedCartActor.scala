@@ -38,7 +38,7 @@ object TypedCartActor {
   case class InCheckout(cart: Cart)                   extends State(None)
 
   def apply(): Behavior[TypedCartActor.Command] = Behaviors.setup(
-    context => {
+    _ => {
       val actor = new TypedCartActor()
       actor.start
     }
