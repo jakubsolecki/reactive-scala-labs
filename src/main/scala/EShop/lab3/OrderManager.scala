@@ -67,15 +67,15 @@ class OrderManager {
   ): Behavior[OrderManager.Command] =
     Behaviors.setup { _ =>
       cartActorRef ! TypedCartActor.StartCheckout(cartActorAdapter)
-          Behaviors.receive(
-          (context, msg) =>
-            msg match {
-              case OrderManager.ConfirmCheckoutStarted(checkoutRef) =>
-                senderRef ! Done
-                inCheckout(checkoutRef)
-              case _ => Behaviors.same
-          }
-        )
+      Behaviors.receive(
+        (context, msg) =>
+          msg match {
+            case OrderManager.ConfirmCheckoutStarted(checkoutRef) =>
+              senderRef ! Done
+              inCheckout(checkoutRef)
+            case _ => Behaviors.same
+        }
+      )
     }
 
   def inCheckout(checkoutActorRef: ActorRef[TypedCheckout.Command]): Behavior[OrderManager.Command] = Behaviors.receive(
@@ -89,13 +89,12 @@ class OrderManager {
     }
   )
 
-  def inPayment(senderRef: ActorRef[Ack]): Behavior[OrderManager.Command] = Behaviors.receive {
-    (context, message) =>
-      message match {
-        case ConfirmPaymentStarted(paymentActorRef) =>
-          inPayment(paymentActorRef, senderRef)
-        case _ => Behaviors.same
-      }
+  def inPayment(senderRef: ActorRef[Ack]): Behavior[OrderManager.Command] = Behaviors.receive { (context, message) =>
+    message match {
+      case ConfirmPaymentStarted(paymentActorRef) =>
+        inPayment(paymentActorRef, senderRef)
+      case _ => Behaviors.same
+    }
   }
 
   def inPayment(
@@ -113,7 +112,7 @@ class OrderManager {
             senderRef ! Done
             finished
           case _ => Behaviors.same
-        }
+      }
     )
   }
 

@@ -70,10 +70,10 @@ class TypedCheckout(
   def selectingDelivery(timer: Cancellable): Behavior[TypedCheckout.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case ExpireCheckout               => cancelled
-        case CancelCheckout               => cancelled
+        case ExpireCheckout          => cancelled
+        case CancelCheckout          => cancelled
         case SelectDeliveryMethod(_) => selectingPaymentMethod(timer)
-        case _ => Behaviors.same
+        case _                       => Behaviors.same
     }
   )
 
