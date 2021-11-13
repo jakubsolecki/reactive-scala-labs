@@ -18,7 +18,7 @@ object HelloWorldAkkaHttpServer {
   case class Greetings(greetings: String)
 }
 
-trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+trait JsonSupport1 extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val nameFormat      = jsonFormat1(HelloWorldAkkaHttpServer.Name)
   implicit val greetingsFormat = jsonFormat1(HelloWorldAkkaHttpServer.Greetings)
 
@@ -39,7 +39,7 @@ object HelloWorldAkkaHttpServerApp extends App {
 }
 
 /** Just to demonstrate how one can build akka-http based server with JsonSupport */
-class HelloWorldAkkaHttpServer extends JsonSupport {
+class HelloWorldAkkaHttpServer extends JsonSupport1 {
   implicit val system = ActorSystem[Nothing](Behaviors.empty, "HelloWorldAkkaHttp")
 
   def routes: Route = {
