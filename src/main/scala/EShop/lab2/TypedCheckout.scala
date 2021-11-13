@@ -28,9 +28,20 @@ object TypedCheckout {
   sealed trait Event
   case object CheckOutClosed                                       extends Event
   case class PaymentStarted(paymentRef: ActorRef[Payment.Command]) extends Event
+  case object CheckoutStarted                                      extends Event
+  case object CheckoutCancelled                                    extends Event
+  case class DeliveryMethodSelected(method: String)                extends Event
+
+  sealed abstract class State(val timerOpt: Option[Cancellable])
+  case object WaitingForStart                           extends State(None)
+  case class SelectingDelivery(timer: Cancellable)      extends State(Some(timer))
+  case class SelectingPaymentMethod(timer: Cancellable) extends State(Some(timer))
+  case object Closed                                    extends State(None)
+  case object Cancelled                                 extends State(None)
+  case class ProcessingPayment(timer: Cancellable)      extends State(Some(timer))
 
   def apply(cartActor: ActorRef[TypedCartActor.Command]): Behavior[TypedCheckout.Command] = Behaviors.setup(
-    context => {
+    _ => {
       val actor = new TypedCheckout(cartActor)
       actor.start
     }
@@ -50,9 +61,7 @@ class TypedCheckout(
     timerDuration: FiniteDuration,
     command: Command
   ): Cancellable =
-    context.system.scheduler.scheduleOnce(timerDuration, () => {
-      context.self ! command
-    })(context.executionContext)
+    context.scheduleOnce(timerDuration, context.self, command)
 
   def start: Behavior[TypedCheckout.Command] = Behaviors.setup(
     context => selectingDelivery(scheduleTimer(context, checkoutTimerDuration, ExpireCheckout))
@@ -61,12 +70,10 @@ class TypedCheckout(
   def selectingDelivery(timer: Cancellable): Behavior[TypedCheckout.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case ExpireCheckout               => cancelled
-        case CancelCheckout               => cancelled
-        case SelectDeliveryMethod(method) => selectingPaymentMethod(timer)
-        case _ =>
-          context.log.info(s"Unknown message $msg")
-          Behaviors.same
+        case ExpireCheckout          => cancelled
+        case CancelCheckout          => cancelled
+        case SelectDeliveryMethod(_) => selectingPaymentMethod(timer)
+        case _                       => Behaviors.same
     }
   )
 
@@ -78,12 +85,9 @@ class TypedCheckout(
         case SelectPayment(payment: String, orderManagerRef: ActorRef[Any]) =>
           timer.cancel()
           val paymentRef = context.spawn(Payment(payment, orderManagerRef, context.self), "payment")
-//          orderManagerRef ! OrderManager.ConfirmPaymentStarted(paymentRef)
           orderManagerRef ! PaymentStarted(paymentRef)
           processingPayment(scheduleTimer(context, paymentTimerDuration, ExpirePayment))
-        case _ =>
-          context.log.info(s"Unknown message $msg")
-          Behaviors.same
+        case _ => Behaviors.same
     }
   )
 
@@ -96,9 +100,7 @@ class TypedCheckout(
           timer.cancel()
           cartActor ! TypedCartActor.ConfirmCheckoutClosed
           closed
-        case _ =>
-          context.log.info(s"Unknown message $msg")
-          Behaviors.same
+        case _ => Behaviors.same
     }
   )
 

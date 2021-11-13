@@ -15,7 +15,7 @@ object Payment {
     checkout: ActorRef[TypedCheckout.Command]
   ): Behavior[Payment.Command] =
     Behaviors.setup(
-      context => {
+      _ => {
         val payment = new Payment(method, orderManager, checkout)
         payment.start
       }
@@ -31,7 +31,7 @@ class Payment(
   import Payment._
 
   def start: Behavior[Payment.Command] = Behaviors.receive(
-    (context, msg) =>
+    (_, msg) =>
       msg match {
         case DoPayment =>
           orderManager ! OrderManager.ConfirmPaymentReceived
