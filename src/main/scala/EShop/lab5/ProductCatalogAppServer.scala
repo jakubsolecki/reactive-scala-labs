@@ -9,13 +9,11 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{HttpApp, Route}
-import akka.pattern.ask
+import akka.http.scaladsl.server.{Route}
 import akka.util.Timeout
-import scalaz.Scalaz.ToFunctorOpsUnapply
 import spray.json.{DefaultJsonProtocol, JsString, JsValue, JsonFormat, RootJsonFormat}
 
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
 trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {

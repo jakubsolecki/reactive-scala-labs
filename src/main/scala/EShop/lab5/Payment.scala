@@ -17,13 +17,11 @@ import org.slf4j.event.Level
 
 object Payment {
   sealed trait Message
-
-  case object DoPayment extends Message
-
+  case object DoPayment                                                       extends Message
   case class WrappedPaymentServiceResponse(response: PaymentService.Response) extends Message
+//  case object PaymentServiceError                                             extends Message
 
   sealed trait Response
-
   case object PaymentRejected extends Response
 
   val restartStrategy = SupervisorStrategy.restart.withLimit(maxNrOfRetries = 3, withinTimeRange = 1.second)
@@ -33,19 +31,20 @@ object Payment {
     orderManager: ActorRef[OrderManager.Command],
     checkout: ActorRef[TypedCheckout.Command]
   ): Behavior[Message] = {
-    Behaviors.supervise {
-      case _: PaymentClientError =>
-        notifyAboutRejection(orderManager, checkout)
-        Stop(loggingEnabled = true, Level.INFO)
-      case _: Exception => Escalate
-    }
     Behaviors
       .receive[Message]((context, msg) =>
         msg match {
           case DoPayment =>
-            val payment = context.spawn(PaymentService(method, context.self.unsafeUpcast[Any]), "PaymentService")
-//            context.watch(payment)
+            val adapter = context.messageAdapter[PaymentService.Response] {
+              case response @ PaymentService.PaymentSucceeded => WrappedPaymentServiceResponse(response)
+            }
+            val paymentService = Behaviors
+              .supervise(PaymentService(method, adapter))
+              .onFailure(restartStrategy)
+            val paymentServiceRef = context.spawnAnonymous(paymentService)
+            context.watch(paymentServiceRef)
             Behaviors.same
+
           case WrappedPaymentServiceResponse(PaymentSucceeded) =>
             orderManager ! OrderManager.PaymentReceived
             checkout ! TypedCheckout.PaymentReceived
@@ -59,21 +58,7 @@ object Payment {
       }
   }
 
-  //  override val supervisorStrategy: OneForOneStrategy =
-//    OneForOneStrategy(maxNrOfRetries = 3, withinTimeRange = 1.seconds) {
-//      //      case _: PaymentServerError =>
-//      //        notifyAboutRestart()
-//      //        Restart
-//      //      case _: PaymentServerError =>
-//      //        notifyAboutRejection(orderManager, checkout)
-//      //        Stop(true, Level.INFO)
-//      case _: PaymentClientError =>
-//        notifyAboutRejection(orderManager, checkout)
-//        Stop(true, Level.INFO)
-//      case _: Exception => Escalate
-//    }
-
-  // please use this one to notify when supervised actor was stoped
+  // please use this one to notify when supervised actor was stopped
   private def notifyAboutRejection(
     orderManager: ActorRef[OrderManager.Command],
     checkout: ActorRef[TypedCheckout.Command]

@@ -18,7 +18,7 @@ class PaymentServiceTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike 
   it should "response if external payment http server returned 200" in {
     val probe = testKit.createTestProbe[PaymentService.Response]()
     val paymentService =
-      testKit.spawn(PaymentService("visa", probe.ref.unsafeUpcast[Any]))
+      testKit.spawn(PaymentService("visa", probe.ref))
 
     probe.expectMessage(PaymentSucceeded)
   }
@@ -28,7 +28,7 @@ class PaymentServiceTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike 
     val failure = testKit.createTestProbe[String]()
 
     testKit.spawn(Behaviors.setup[Any] { context =>
-      val paymentService = context.spawn(PaymentService("paypal", probe.ref.unsafeUpcast[Any]), "PaymentService")
+      val paymentService = context.spawn(PaymentService("paypal", probe.ref), "PaymentService")
       context.watch(paymentService)
 
       Behaviors.receiveSignal[Any] {
@@ -47,7 +47,7 @@ class PaymentServiceTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike 
 
     testKit.spawn(Behaviors.setup[Any] { context =>
       val paymentService =
-        context.spawn(PaymentService("someUnknownMethod", probe.ref.unsafeUpcast[Any]), "PaymentService")
+        context.spawn(PaymentService("someUnknownMethod", probe.ref), "PaymentService")
       context.watch(paymentService)
 
       Behaviors.receiveSignal[Any] {
