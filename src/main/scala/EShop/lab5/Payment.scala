@@ -12,7 +12,6 @@ object Payment {
   sealed trait Message
   case object DoPayment                                                       extends Message
   case class WrappedPaymentServiceResponse(response: PaymentService.Response) extends Message
-//  case object PaymentServiceError                                             extends Message
 
   sealed trait Response
   case object PaymentRejected extends Response
@@ -35,7 +34,6 @@ object Payment {
               .supervise(PaymentService(method, adapter))
               .onFailure(restartStrategy)
             val paymentServiceRef = context.spawnAnonymous(paymentService)
-//            context.watchWith(paymentServiceRef, PaymentServiceError)
             context.watch(paymentServiceRef)
             Behaviors.same
 
@@ -43,14 +41,10 @@ object Payment {
             orderManager ! OrderManager.ConfirmPaymentReceived
             checkout ! TypedCheckout.PaymentReceived
             Behaviors.same
-
-//          case PaymentServiceError =>
-//            notifyAboutRejection(orderManager, checkout)
-//            Behaviors.same
         }
       )
       .receiveSignal {
-        case (context, Terminated(t)) =>
+        case (_, Terminated(_)) =>
           notifyAboutRejection(orderManager, checkout)
           Behaviors.same
       }
