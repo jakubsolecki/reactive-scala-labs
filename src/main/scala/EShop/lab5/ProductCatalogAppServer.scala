@@ -12,7 +12,6 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
 import spray.json.{DefaultJsonProtocol, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
@@ -83,19 +82,6 @@ object ProductCatalogHttpServer {
 
   def start(port: Int): Future[Done] = {
     val system = ActorSystem[Receptionist.Listing](ProductCatalogHttpServer(port), "ProductCatalog")
-    val config = ConfigFactory.load()
-
-    val productCatalogSystem = ActorSystem[Nothing](
-      Behaviors.empty,
-      "ProductCatalog",
-      config.getConfig("productcatalog").withFallback(config)
-    )
-
-    productCatalogSystem.systemActorOf(
-      ProductCatalog(new SearchService()),
-      "productcatalog"
-    )
-
     Await.ready(system.whenTerminated, Duration.Inf)
   }
 }
