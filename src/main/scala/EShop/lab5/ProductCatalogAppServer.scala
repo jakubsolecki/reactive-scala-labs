@@ -33,11 +33,11 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val returnFormat: RootJsonFormat[Items] = jsonFormat1(Items)
 }
 
-object ProductAppHttpServer extends App {
-  new AkkaHttpServer().start(9000)
+object ProductCatalogHttpServerApp extends App {
+  new ProductCatalogHttpServer().start(9000)
 }
 
-class AkkaHttpServer extends JsonSupport {
+class ProductCatalogHttpServer extends JsonSupport {
   implicit val system: ActorSystem[Nothing] = ActorSystem[Nothing](Behaviors.empty, "ProductCatalog")
   implicit val executionContext             = system.executionContext
   implicit val timeout: Timeout             = 3.second
