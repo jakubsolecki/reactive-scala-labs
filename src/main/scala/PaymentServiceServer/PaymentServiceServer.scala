@@ -17,7 +17,6 @@ class PaymentServiceServer extends PaymentRoutes {
 
   def run() = {
     val serverBinding = Http().newServerAt("localhost", 8080).bind(routes)
-//    val serverBinding = Http().newServerAt("127.0.0.1", 8080).bind(routes)
 
     serverBinding.onComplete {
       case Success(bound) =>

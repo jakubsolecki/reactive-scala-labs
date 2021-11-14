@@ -2,18 +2,11 @@ package EShop.lab5
 
 import EShop.lab2.TypedCheckout
 import EShop.lab3.OrderManager
-import EShop.lab5.Payment.{PaymentRejected, WrappedPaymentServiceResponse}
-import EShop.lab5.PaymentService.{PaymentClientError, PaymentServerError, PaymentSucceeded}
-import akka.actor.OneForOneStrategy
-import akka.actor.SupervisorStrategy.Escalate
-import akka.actor.typed.SupervisorStrategy.Stop
-import akka.actor.typed.{ActorRef, Behavior, ChildFailed, SupervisorStrategy}
+import EShop.lab5.PaymentService.PaymentSucceeded
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy, Terminated}
 import akka.actor.typed.scaladsl.Behaviors
-import akka.stream.StreamTcpException
 
 import scala.concurrent.duration._
-import akka.actor.typed.Terminated
-import org.slf4j.event.Level
 
 object Payment {
   sealed trait Message
@@ -42,13 +35,18 @@ object Payment {
               .supervise(PaymentService(method, adapter))
               .onFailure(restartStrategy)
             val paymentServiceRef = context.spawnAnonymous(paymentService)
+//            context.watchWith(paymentServiceRef, PaymentServiceError)
             context.watch(paymentServiceRef)
             Behaviors.same
 
           case WrappedPaymentServiceResponse(PaymentSucceeded) =>
-            orderManager ! OrderManager.PaymentReceived
+            orderManager ! OrderManager.ConfirmPaymentReceived
             checkout ! TypedCheckout.PaymentReceived
             Behaviors.same
+
+//          case PaymentServiceError =>
+//            notifyAboutRejection(orderManager, checkout)
+//            Behaviors.same
         }
       )
       .receiveSignal {

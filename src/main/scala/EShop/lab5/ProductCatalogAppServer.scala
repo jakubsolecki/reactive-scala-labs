@@ -2,18 +2,20 @@ package EShop.lab5
 
 import java.net.URI
 import EShop.lab5.ProductCatalog.{GetItems, Item, Items}
-import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.Done
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route}
+import akka.http.scaladsl.server.Route
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 import spray.json.{DefaultJsonProtocol, JsString, JsValue, JsonFormat, RootJsonFormat}
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.concurrent.duration.{Duration, DurationInt}
 
 trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
@@ -32,36 +34,68 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 }
 
 object ProductCatalogHttpServerApp extends App {
-  new ProductCatalogHttpServer().start(9000)
+  ProductCatalogHttpServer.start(9000)
 }
 
-class ProductCatalogHttpServer extends JsonSupport {
-  implicit val system: ActorSystem[Nothing] = ActorSystem[Nothing](Behaviors.empty, "ProductCatalog")
-  implicit val executionContext             = system.executionContext
-  implicit val timeout: Timeout             = 3.second
-  implicit val scheduler                    = system.scheduler
+case class ProductCatalogHttpServer(queryRef: ActorRef[ProductCatalog.Query])(implicit val scheduler: Scheduler)
+  extends JsonSupport {
+  implicit val timeout: Timeout = 3.second
 
   def routes: Route = {
     path("catalog") {
       get {
         parameters("brand".as[String], "words".as[String]) { (brand, words) =>
-          val listingFuture = system.receptionist.ask((ref: ActorRef[Receptionist.Listing]) =>
-            Receptionist.find(ProductCatalog.ProductCatalogServiceKey, ref)
-          )
-          val items = for {
-            ProductCatalog.ProductCatalogServiceKey.Listing(listing) <- listingFuture
-            productCatalog = listing.head
-            items <-
-              productCatalog.ask(ref => GetItems(brand, words.split(" ").toList, ref)).mapTo[ProductCatalog.Items]
-          } yield items
-          complete(items)
+          complete {
+            val items = queryRef
+              .ask(ref => GetItems(brand, words.split(" ").toList, ref))
+              .mapTo[ProductCatalog.Items]
+            Future.successful(items)
+          }
+        }
+      }
+    }
+  }
+}
+
+object ProductCatalogHttpServer {
+  def apply(port: Int): Behavior[Receptionist.Listing] = {
+    Behaviors.setup { context =>
+      implicit val executionContext: ExecutionContextExecutor = context.executionContext
+      implicit val system: ActorSystem[Nothing]               = context.system
+      implicit val timeout: Timeout                           = 3.second
+      implicit val scheduler: Scheduler                       = system.scheduler
+
+      system.receptionist ! Receptionist.subscribe(ProductCatalog.ProductCatalogServiceKey, context.self)
+      Behaviors.receiveMessage[Receptionist.Listing] { msg =>
+        val listing = msg.serviceInstances(ProductCatalog.ProductCatalogServiceKey)
+        if (listing.isEmpty)
+          Behaviors.same
+        else {
+          val queryRef = listing.head
+          val selfRef  = ProductCatalogHttpServer(queryRef)
+          val binding  = Http().newServerAt("localhost", port).bind(selfRef.routes)
+          val _        = Await.ready(binding, Duration.Inf)
+          Behaviors.empty
         }
       }
     }
   }
 
-  def start(port: Int) = {
-    val bindingFuture = Http().newServerAt("localhost", port).bind(routes)
+  def start(port: Int): Future[Done] = {
+    val system = ActorSystem[Receptionist.Listing](ProductCatalogHttpServer(port), "ProductCatalog")
+    val config = ConfigFactory.load()
+
+    val productCatalogSystem = ActorSystem[Nothing](
+      Behaviors.empty,
+      "ProductCatalog",
+      config.getConfig("productcatalog").withFallback(config)
+    )
+
+    productCatalogSystem.systemActorOf(
+      ProductCatalog(new SearchService()),
+      "productcatalog"
+    )
+
     Await.ready(system.whenTerminated, Duration.Inf)
   }
 }

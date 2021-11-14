@@ -12,8 +12,8 @@ object PaymentService {
   sealed trait Response
   case object PaymentSucceeded extends Response
 
-  case class PaymentClientError() extends Exception
-  case class PaymentServerError() extends Exception
+  case class PaymentClientError() extends Exception("Payment Client Error")
+  case class PaymentServerError() extends Exception("Payment Server Error")
 
   // actor behavior which needs to be supervised
   // use akka.http.scaladsl.Http to make http based payment request
