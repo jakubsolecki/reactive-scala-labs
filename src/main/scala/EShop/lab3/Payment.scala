@@ -14,12 +14,10 @@ object Payment {
     orderManager: ActorRef[Any],
     checkout: ActorRef[TypedCheckout.Command]
   ): Behavior[Payment.Command] =
-    Behaviors.setup(
-      _ => {
-        val payment = new Payment(method, orderManager, checkout)
-        payment.start
-      }
-    )
+    Behaviors.setup { _ =>
+      val payment = new Payment(method, orderManager, checkout)
+      payment.start
+    }
 }
 
 class Payment(
@@ -30,14 +28,14 @@ class Payment(
 
   import Payment._
 
-  def start: Behavior[Payment.Command] = Behaviors.receive(
-    (_, msg) =>
+  def start: Behavior[Payment.Command] =
+    Behaviors.receive((_, msg) =>
       msg match {
         case DoPayment =>
           orderManager ! OrderManager.ConfirmPaymentReceived
           checkout ! TypedCheckout.ConfirmPaymentReceived
           Behaviors.stopped
-    }
-  )
+      }
+    )
 
 }
