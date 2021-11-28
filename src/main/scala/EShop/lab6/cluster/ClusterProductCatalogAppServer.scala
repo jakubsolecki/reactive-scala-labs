@@ -2,7 +2,7 @@ package EShop.lab6.cluster
 
 import EShop.lab5.ProductCatalog.GetItems
 import EShop.lab5.{JsonSupport, ProductCatalog, SearchService}
-import akka.actor.typed.ActorSystem
+import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
 import akka.http.scaladsl.Http
@@ -16,7 +16,7 @@ import scala.concurrent.duration.{Duration, DurationInt}
 import scala.util.Try
 
 object SeedNode extends App {
-  private val instancesPerNode = 3
+  private val instancesPerNode = 2
   private val config           = ConfigFactory.load()
   val system = ActorSystem[Nothing](
     Behaviors.empty,
@@ -43,11 +43,13 @@ class ClusterProductCatalogServer() extends JsonSupport {
   implicit val executionContext = system.executionContext
   implicit val timeout: Timeout = 5.seconds
 
-  // distributed Group Router, workers possibly on different nodes
-  val workers =
+  val requestsCounter: ActorRef[RequestCounter.Command] =
+    system.systemActorOf(Routers.group(RequestCounterActor.RequestCounterServiceKey), "requestCounterRouter")
+
+  val workers: ActorRef[ProductCatalog.Query] =
     system.systemActorOf(Routers.group(ProductCatalog.ProductCatalogServiceKey), "clusterWorkerRouter")
 
-  def routes: Route =
+  def routes: Route = concat(
     path("products") {
       get {
         parameters("brand".as[String], "words".as[String]) { (brand, words) =>
@@ -59,7 +61,18 @@ class ClusterProductCatalogServer() extends JsonSupport {
           }
         }
       }
+    },
+    path("counter") {
+      get {
+        complete {
+          val count = requestsCounter
+            .ask(ref => RequestCounter.ProductRequestsCount(ref))
+            .map { count => s"{ \"count\": $count }" }
+          Future.successful(count)
+        }
+      }
     }
+  )
 
   def run(port: Int): Unit = {
     val bindingFuture = Http().newServerAt("localhost", port).bind(routes)

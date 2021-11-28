@@ -1,5 +1,7 @@
 package EShop.lab5
 
+import EShop.lab6.cluster.{RequestCounter, RequestCounterTopic}
+import akka.actor.typed.pubsub.Topic
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
@@ -62,9 +64,12 @@ object ProductCatalog {
     Behaviors.setup { context =>
       context.system.receptionist ! Receptionist.register(ProductCatalogServiceKey, context.self)
 
+      val topic = context.spawn(RequestCounterTopic(), "RequestCounterTopic")
+
       Behaviors.receiveMessage {
         case GetItems(brand, productKeyWords, sender) =>
           sender ! Items(searchService.search(brand, productKeyWords))
+          topic ! Topic.Publish(RequestCounter.ProductCatalogRequest)
           Behaviors.same
       }
     }
