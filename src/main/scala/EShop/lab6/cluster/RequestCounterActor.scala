@@ -11,13 +11,12 @@ import scala.concurrent.duration.Duration
 
 object RequestCounter {
   sealed trait TopicMessage
-  case object ProductCatalogRequest                       extends TopicMessage
+  case object ProductCatalogRequest extends TopicMessage
 
   sealed trait Command
   case class ProductRequestsCount(replyTo: ActorRef[Int]) extends Command
   case object IncrementCounter                            extends Command
 }
-
 
 object RequestCounterApp extends App {
   import RequestCounter._
@@ -38,24 +37,26 @@ object RequestCounterActor {
 
   val RequestCounterServiceKey = ServiceKey[Command]("RequestCounter")
 
-  def apply(): Behavior[Command] = Behaviors.setup { context =>
-    context.system.receptionist ! Receptionist.register(RequestCounterServiceKey, context.self)
-    val topic = context.spawn(RequestCounterTopic(), "RequestCounterTopic")
-    val adapter = context.messageAdapter[TopicMessage] {
-      case ProductCatalogRequest => IncrementCounter
+  def apply(): Behavior[Command] =
+    Behaviors.setup { context =>
+      context.system.receptionist ! Receptionist.register(RequestCounterServiceKey, context.self)
+      val topic = context.spawn(RequestCounterTopic(), "RequestCounterTopic")
+      val adapter = context.messageAdapter[TopicMessage] {
+        case ProductCatalogRequest => IncrementCounter
+      }
+
+      topic ! Topic.Subscribe(adapter)
+      countRequests(0)
     }
 
-    topic ! Topic.Subscribe(adapter)
-    countRequests(0)
-  }
-
-  def countRequests(state: Int): Behavior[Command] = Behaviors.receiveMessage {
-    case IncrementCounter =>
-      countRequests(state + 1)
-    case ProductRequestsCount(replyTo) =>
-      replyTo ! state
-      Behaviors.same
-  }
+  def countRequests(state: Int): Behavior[Command] =
+    Behaviors.receiveMessage {
+      case IncrementCounter =>
+        countRequests(state + 1)
+      case ProductRequestsCount(replyTo) =>
+        replyTo ! state
+        Behaviors.same
+    }
 }
 
 object RequestCounterTopic {

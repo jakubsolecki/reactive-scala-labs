@@ -49,30 +49,35 @@ class ClusterProductCatalogServer() extends JsonSupport {
   val workers: ActorRef[ProductCatalog.Query] =
     system.systemActorOf(Routers.group(ProductCatalog.ProductCatalogServiceKey), "clusterWorkerRouter")
 
-  def routes: Route = concat(
-    path("products") {
-      get {
-        parameters("brand".as[String], "words".as[String]) { (brand, words) =>
+  def routes: Route =
+    concat(
+      path("products") {
+        get {
+          parameters("brand".as[String], "words".as[String]) { (brand, words) =>
+            complete {
+              val items = workers
+                .ask(ref => GetItems(brand, words.split(" ").toList, ref))
+                .mapTo[ProductCatalog.Items]
+              Future.successful(items)
+            }
+          }
+        }
+      },
+      path("counter") {
+        get {
           complete {
-            val items = workers
-              .ask(ref => GetItems(brand, words.split(" ").toList, ref))
-              .mapTo[ProductCatalog.Items]
-            Future.successful(items)
+            val count = requestsCounter
+              .ask(ref => RequestCounter.ProductRequestsCount(ref))
+              .map { count =>
+                s"""{
+                 |"count": $count
+                 |}""".stripMargin
+              }
+            Future.successful(count)
           }
         }
       }
-    },
-    path("counter") {
-      get {
-        complete {
-          val count = requestsCounter
-            .ask(ref => RequestCounter.ProductRequestsCount(ref))
-            .map { count => s"{ \"count\": $count }" }
-          Future.successful(count)
-        }
-      }
-    }
-  )
+    )
 
   def run(port: Int): Unit = {
     val bindingFuture = Http().newServerAt("localhost", port).bind(routes)
