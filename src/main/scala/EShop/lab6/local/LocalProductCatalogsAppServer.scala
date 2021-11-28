@@ -2,7 +2,7 @@ package EShop.lab6.local
 import EShop.lab5.ProductCatalog.GetItems
 import EShop.lab5.{JsonSupport, ProductCatalog, SearchService}
 import akka.actor.typed.scaladsl.Routers
-import akka.http.scaladsl.server.Directives.{_symbol2NR, parameters, path}
+import akka.http.scaladsl.server.Directives.{parameters, path}
 import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.Behaviors
@@ -15,7 +15,7 @@ import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.util.Try
 
-class LocalProductCatalogsAppServer extends JsonSupport {
+class LocalProductCatalogsServer extends JsonSupport {
   implicit val system: ActorSystem[Nothing]               = ActorSystem(Behaviors.empty, "LocalReactiveRouters")
   implicit val executionContext: ExecutionContextExecutor = system.executionContext
   implicit val timeout: Timeout                           = 5.seconds
@@ -45,7 +45,7 @@ class LocalProductCatalogsAppServer extends JsonSupport {
   }
 }
 
-object LocalProductCatalogsAppServerApp extends App {
-  val localProductCatalogsAppServer = new LocalProductCatalogsAppServer()
-  localProductCatalogsAppServer.run(Try(args(0).toInt).getOrElse(9123))
+object LocalProductCatalogsServerApp extends App {
+  val localProductCatalogsAppServer = new LocalProductCatalogsServer()
+  localProductCatalogsAppServer.run(Try(args(0).toInt).getOrElse(9000))
 }
