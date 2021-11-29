@@ -2,7 +2,7 @@
 
 sbt "runMain EShop.lab6.cluster.SeedNode seed-node1"
 sbt "runMain EShop.lab6.cluster.SeedNode seed-node2"
-sbt "runMain EShop.lab6.cluster.SeedNode"
+sbt "runMain EShop.lab6.cluster.SeedNode seed-node3"
 
 sbt "runMain EShop.lab6.cluster.ClusterProductCatalogServerApp 9001"
 sbt "runMain EShop.lab6.cluster.ClusterProductCatalogServerApp 9002"
