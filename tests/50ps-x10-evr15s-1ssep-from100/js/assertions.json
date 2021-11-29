@@ -1,0 +1,10 @@
+{
+  "simulation": "EShop.lab6.HttpWorkerGatlingTest",
+  "simulationId": "httpworkergatlingtest",
+  "start": 1638121982173,
+  "description": "",
+  "scenarios": ["BasicSimulation"],
+  "assertions": [
+
+  ]
+}
